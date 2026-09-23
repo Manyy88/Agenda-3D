@@ -1,0 +1,54 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Radar de Agenda 3D</title>
+<style>
+:root{font-family:Arial,Helvetica,sans-serif;color:#172738;background:#f1f4f7;font-synthesis:none}*{box-sizing:border-box}body{margin:0;padding:32px 18px}main{max-width:830px;margin:auto;background:white;border:1px solid #dce3e9;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px #192b3e08}header{padding:28px 32px 22px;border-top:6px solid #007c91}.brand{font-size:13px;font-weight:800;letter-spacing:.16em;color:#007486}h1{font-size:30px;letter-spacing:-.035em;margin:12px 0 8px}header p{margin:0;color:#536274;font-size:16px}.content{padding:0 32px 28px}.config{display:flex;flex-wrap:wrap;gap:16px;padding:18px;background:#f4f7f9;border-radius:10px}.config label{flex:1;min-width:160px;font-size:14px;line-height:1.4;color:#48596a}.config input{display:block;width:100%;margin-top:7px}input,textarea,button{font:inherit}input{border:1px solid #acbbc7;border-radius:7px;padding:10px;background:white;min-width:0;color:#142a3d;font-size:20px;font-weight:600;width:100%;min-height:46px}input:focus,textarea:focus{outline:3px solid #00a0b53b;border-color:#007c91}input::-webkit-inner-spin-button{appearance:none}.reference{font-size:14px;color:#506171;margin:16px 0 20px;line-height:1.6}.reference strong{font-size:16px;color:#172738}table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:6px 0;text-align:center}th:first-child{width:22%;text-align:left}th{padding:10px 0;font-size:16px}thead th span{display:block;font-weight:400;color:#596a79;font-size:13px;margin-top:5px}tbody th{font-size:14px;font-weight:500}td{padding:10px 5px;font-size:25px;font-weight:600}td input{text-align:center;font-size:26px;padding:10px 2px}.gap{border-radius:8px;font-size:26px;background:#f1f4f7;color:#77848f}.gap small{display:block;font-size:13px;font-weight:400;line-height:1.35;margin-top:6px}.bad{background:#fff0ee;color:#a62c24}.good{background:#eaf6ef;color:#206c44}.action{margin-top:26px}textarea{width:100%;min-height:76px;resize:vertical;border:1px solid #acbbc7;border-radius:8px;padding:12px;font-size:16px;margin-top:10px}.action label{font-weight:600;font-size:17px}.allgood{color:#206c44;font-size:16px;margin-top:22px}.footer{display:flex;align-items:center;gap:16px;margin-top:22px}button{background:#006f82;color:white;border:0;border-radius:8px;min-height:48px;padding:12px 24px;font-weight:700;font-size:16px;cursor:pointer}button:disabled{background:#768c95;cursor:default}#status{font-size:14px;line-height:1.45;color:#455b6a}#status.error{color:#a62c24}[hidden]{display:none!important}.preview{margin:0 0 16px;font-size:14px;color:#795421;background:#fff7df;padding:10px;border-radius:6px}@media(max-width:520px){body{padding:12px 8px}header{padding:20px 16px}h1{font-size:25px}.content{padding:0 10px 20px}.config{padding:12px;gap:10px}.config label{min-width:110px}.config label:first-child{flex:1.4}table{border-spacing:3px 0}th:first-child{width:24%}th{font-size:15px}tbody th{font-size:13px}td{padding:8px 2px;font-size:23px}td input{font-size:23px}.gap{font-size:23px}.gap small{font-size:12px}.footer{align-items:flex-start;flex-direction:column}.footer button{width:100%}.action label{font-size:16px}.reference{padding:0 4px}}
+</style></head><body><main><header><div class="brand">AUTOCOM WAY</div><h1>Radar de Agenda 3D</h1><p>¿Tengo suficiente agenda para los próximos 3 días?</p></header><div class="content"><p id="preview" class="preview" hidden>Vista previa · El guardado se habilita al instalar en Google Apps Script.</p><form id="form"><div class="config" id="config"></div><p class="reference" id="reference">Preparando los próximos tres días…</p><table aria-label="Agenda de los próximos tres días operativos"><thead><tr id="dates"><th scope="col"></th></tr></thead><tbody><tr id="targets"><th scope="row">Objetivo</th></tr><tr id="agendas"><th scope="row">Agendadas</th></tr><tr id="gaps"><th scope="row">Brecha</th></tr></tbody></table><div class="action" id="actionBox" hidden><label for="action">¿Qué vas a hacer para cubrir la brecha?</label><textarea id="action" maxlength="1000" placeholder="Escribe una acción breve…"></textarea></div><p id="allgood" class="allgood" hidden>Tienes suficiente agenda para los próximos 3 días.</p><div class="footer"><button id="save" disabled>Guardar Radar</button><span id="status" role="status" aria-live="polite"></span></div></form></div></main>
+<script>
+const Radar = (() => {
+  function date(s) { return new Date(s + 'T12:00:00Z'); }
+  function iso(d) { return d.toISOString().slice(0,10); }
+  function days(today) {
+    const d = date(today), result = [];
+    while(result.length < 3) { d.setUTCDate(d.getUTCDate()+1); if(d.getUTCDay() !== 0) result.push(iso(d)); }
+    return result;
+  }
+  function operating(month) {
+    const d = date(month+'-01'); let n=0;
+    while(iso(d).slice(0,7) === month) { if(d.getUTCDay()!==0) n++; d.setUTCDate(d.getUTCDate()+1); }
+    return n;
+  }
+  function integer(value, min=0) {
+    if(value === '' || value === null || value === undefined || typeof value === 'boolean') return null;
+    const n=Number(value); return Number.isSafeInteger(n) && n>=min && n<=1000000 ? n : null;
+  }
+  function calculate(today, goals, apv, agendas) {
+    const count=integer(apv,1);
+    return days(today).map((day,i)=>{
+      const month=day.slice(0,7), sales=integer(goals[month]), operatingDays=operating(month);
+      const target=sales===null?null:Math.ceil(sales*8/operatingDays);
+      const scheduled=integer(agendas[i]);
+      return {day,month,sales,operatingDays,monthlyAppointments:sales===null?null:sales*8,target,perApv:target===null||count===null?null:target/count,scheduled,gap:target===null||scheduled===null?null:scheduled-target};
+    });
+  }
+  return {days,operating,integer,calculate};
+})();
+</script>
+
+<script>
+const $=id=>document.getElementById(id); let today,months=[],busy=false,requestId=null,saved=false;
+const live=typeof google!=='undefined' && google.script && google.script.run;
+const formatDate=s=>new Intl.DateTimeFormat('es-MX',{day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(s+'T12:00:00Z'));
+const monthLabel=s=>new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(s+'-01T12:00:00Z'));
+function field(id,label){const el=document.createElement('label');el.textContent=label;const input=document.createElement('input');input.id=id;input.type='number';input.inputMode='numeric';input.min=id==='apv'?'1':'0';input.max='1000000';input.step='1';input.required=true;el.append(input);return el;}
+function setup(context){today=context.today;const days=Radar.days(today);months=[...new Set(days.map(d=>d.slice(0,7)))];months.forEach(m=>$('config').append(field('goal-'+m,'Objetivo mensual de ventas · '+monthLabel(m))));$('config').append(field('apv','Número de APV'));
+ days.forEach((day,i)=>{const th=document.createElement('th');th.scope='col';th.textContent='D+'+(i+1);const span=document.createElement('span');span.textContent=formatDate(day);th.append(span);$('dates').append(th);const target=document.createElement('td');target.id='target'+i;target.textContent='—';$('targets').append(target);const cell=document.createElement('td'),input=document.createElement('input');input.type='number';input.inputMode='numeric';input.id='agenda'+i;input.min='0';input.max='1000000';input.step='1';input.required=true;input.setAttribute('aria-label','Citas agendadas para '+formatDate(day));cell.append(input);$('agendas').append(cell);const gap=document.createElement('td');gap.id='gap'+i;gap.className='gap';gap.textContent='—';$('gaps').append(gap);});render();}
+function payload(){const goals={};months.forEach(m=>goals[m]=$('goal-'+m).value);return {today,goals,apv:$('apv').value,agendas:[0,1,2].map(i=>$('agenda'+i).value),action:$('action').value};}
+function render(){if(!today)return;const p=payload(),rows=Radar.calculate(today,p.goals,p.apv,p.agendas);let missing=false,deficit=false;
+ rows.forEach((r,i)=>{$('target'+i).textContent=r.target===null?'—':r.target;const el=$('gap'+i);el.className='gap';el.replaceChildren();if(r.gap===null){el.textContent='—';missing=true;return;}el.classList.add(r.gap<0?'bad':'good');el.textContent=r.gap>0?'+'+r.gap:String(r.gap);const small=document.createElement('small');small.textContent=r.gap<0?'Te faltan '+(-r.gap)+' citas':r.gap===0?'Objetivo cubierto':r.gap+' sobre el objetivo';el.append(small);if(r.gap<0)deficit=true;});
+ $('reference').replaceChildren();months.forEach((m,j)=>{const r=rows.find(r=>r.month===m);if(j)$('reference').append(document.createElement('br'));const strong=document.createElement('strong');strong.textContent=(months.length>1?monthLabel(m)+' · ':'')+'Objetivo de agencia: '+(r.target===null?'—':r.target)+' citas al día';$('reference').append(strong,document.createElement('br'),'Referencia por APV: '+(r.perApv===null?'—':r.perApv.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1}))+' citas al día');});
+ $('actionBox').hidden=!deficit;$('action').required=deficit;$('allgood').hidden=missing||!Radar.integer(p.apv,1)||deficit;$('save').disabled=!live||busy||saved||missing||Radar.integer(p.apv,1)===null||(deficit&&!p.action.trim());}
+$('form').addEventListener('input',()=>{requestId=null;saved=false;$('status').textContent='';$('status').className='';render();});
+$('form').addEventListener('submit',e=>{e.preventDefault();if(!live||busy||$('save').disabled)return;const p=payload();requestId=requestId||(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2));p.id=requestId;busy=true;$('status').textContent='Guardando…';Array.from($('form').elements).forEach(el=>el.disabled=true);
+ const finish=()=>{busy=false;Array.from($('form').elements).forEach(el=>el.disabled=false);render();};
+ google.script.run.withSuccessHandler(()=>{saved=true;$('status').className='';$('status').textContent='Radar guardado';finish();}).withFailureHandler(err=>{$('status').className='error';$('status').textContent=err.message||'No se pudo guardar. Intenta nuevamente.';finish();}).saveRadar(p);});
+if(live){google.script.run.withSuccessHandler(setup).withFailureHandler(()=>{$('status').textContent='No se pudo cargar. Recarga la página.';}).getContext();}else{$('preview').hidden=false;const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const val=t=>parts.find(p=>p.type===t).value;setup({today:val('year')+'-'+val('month')+'-'+val('day')});}
+</script></body></html>
